@@ -1,0 +1,6 @@
+.vscode
+bin
+WinIo32.dll
+WinIo32.sys
+WinIo64.dll
+WinIo64.sys
