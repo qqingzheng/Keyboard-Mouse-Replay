@@ -1,3 +1,11 @@
+#ifndef _WINDOWS_H
+#define _WINDOWS_H
+#include <Windows.h>
+#endif
+
+#ifndef _KEYBOARD_CONFIG_H
+#define _KEYBOARD_CONFIG_H
+#include <cstdio>
 #define START_KEY 112
 #define PAUSE_KEY 113
 #define END_KEY 114
@@ -6,6 +14,7 @@ typedef struct{
     unsigned int virtualKey;
     const char* name;
 } VirtualKeyToName;
+
 
 static VirtualKeyToName mapList[] = {
     {VK_SPACE, "Space"},
@@ -16,7 +25,7 @@ static VirtualKeyToName mapList[] = {
     {VK_MENU, "Alt"},
     {VK_TAB, "Tab"}};
 
-bool FindVKName(UINT virtualKey, char* result){
+static bool FindVKName(UINT virtualKey, char* result){
     if(virtualKey >= 0x41 && virtualKey <= 0x5A){
         sprintf(result, "%c", virtualKey);
         return true;
@@ -33,3 +42,4 @@ bool FindVKName(UINT virtualKey, char* result){
     }
     return false;
 }
+#endif
