@@ -29,7 +29,7 @@ class Monitor{
         static InstallDrive funcInstallDriver;
         static GetPortVal funcGetPortVal;
         static SetPortVal funcSetPortVal;
-        std::vector<DWORD> keyPressed = std::vector<DWORD>(32);
+        char keyPressed[128] = {0};
         bool WinIOEnvCheck() const;
         bool InstallDriver() const;
         void WaitForBuf() const;
@@ -53,8 +53,10 @@ class Monitor{
         void SetKeyPress(DWORD);
         void SetKeyRelease(DWORD);
         void StartRecord(const char*);
+        bool IsMarkScanCode(DWORD) const;
+        void MoveMouseX(char) const;
+        void MoveMouseY(char) const;
 };
-
 bool Monitor::isInit = false;
 const HMODULE Monitor::winIO = LoadLibrary(TEXT("WinIo64.dll")); // Load WinIO dll
 #define GET_FUNC(NAME) GetProcAddress(winIO, NAME)
@@ -65,6 +67,39 @@ InstallDrive Monitor::funcInstallDriver = (InstallDrive) GET_FUNC("InstallWinIoD
 GetPortVal Monitor::funcGetPortVal = (GetPortVal) GET_FUNC("GetPortVal");
 SetPortVal Monitor::funcSetPortVal = (SetPortVal) GET_FUNC("SetPortVal");
 
+bool Monitor::IsMarkScanCode(DWORD key) const{
+    return key < 128;
+}
+
+void Monitor::MoveMouseX(char x) const{
+    WaitForBuf();
+    funcSetPortVal(CMDPORT, 0xD3, 1);
+    funcSetPortVal(DATAPORT, 0x08, 1);
+    WaitForBuf();
+    funcSetPortVal(CMDPORT, 0xD3, 1);
+    funcSetPortVal(DATAPORT, x, 1);
+    WaitForBuf();
+    funcSetPortVal(CMDPORT, 0xD3, 1);
+    funcSetPortVal(DATAPORT, 0, 1);
+    WaitForBuf();
+    funcSetPortVal(CMDPORT, 0xD3, 1);
+    funcSetPortVal(DATAPORT, 0, 1);
+}
+
+void Monitor::MoveMouseY(char y) const{
+    WaitForBuf();
+    funcSetPortVal(CMDPORT, 0xD3, 1);
+    funcSetPortVal(DATAPORT, 0x08, 1);
+    WaitForBuf();
+    funcSetPortVal(CMDPORT, 0xD3, 1);
+    funcSetPortVal(DATAPORT, 0, 1);
+    WaitForBuf();
+    funcSetPortVal(CMDPORT, 0xD3, 1);
+    funcSetPortVal(DATAPORT, y, 1);
+    WaitForBuf();
+    funcSetPortVal(CMDPORT, 0xD3, 1);
+    funcSetPortVal(DATAPORT, 0, 1);
+}
 
 bool Monitor::WinIOEnvCheck() const{
     if(winIO == NULL){
@@ -117,32 +152,18 @@ void Monitor::SendKeyRelease(DWORD key) const{
 }
 
 void Monitor::SetKeyPress(DWORD key){
-    bool isPressed = false;
-    for(DWORD _key : keyPressed){
-        if(_key == key){
-            isPressed = true;
-            break;
-        }
-    }
-    if(!isPressed){
-        keyPressed.push_back(key);
-    }
-    
+    keyPressed[key] = 1;   
 }
 
 void Monitor::SetKeyRelease(DWORD key){
-    for(std::vector<DWORD>::iterator i = keyPressed.begin(); i != keyPressed.end(); ++ i){
-        if(*i == key){
-            keyPressed.erase(i);
-            break;
-        }
-    }
+    keyPressed[key] = 0;
 }
 
 void Monitor::StartRecord(const char* path){
     std::ofstream outputFile(path, std::ios::out);
     bool pause = true;
     bool ignoreNext = false;
+    bool resend = true;
     while(true){ // start record until we press END_KEY.
         DWORD cmdPortDword = 0;
         DWORD dataPortDword = 0;
@@ -150,27 +171,56 @@ void Monitor::StartRecord(const char* path){
         if(cmdPortDword & 0x1){
             if(!ignoreNext){
                 funcGetPortVal(DATAPORT, &dataPortDword, 1);
-                UINT vK = MapVirtualKey(dataPortDword, MAPVK_VSC_TO_VK);
-                if(vK == START_KEY){
+                if(dataPortDword == START_KEY){
+                    printf("Start recording. \n");
                     pause = false;
-                }else if(vK == PAUSE_KEY){
+                }else if(dataPortDword == PAUSE_KEY){
+                    MoveMouseX(30);
+                    printf("Record pause. \n");
                     pause = true;
-                }else if(vK == END_KEY){
+                }else if(dataPortDword == END_KEY){
+                    printf("Record end. \n");
                     break;
+                }else if(dataPortDword == RESEND_KEY){
+                    if(resend){
+                        resend = false;
+                        printf("resend stop. \n");
+                    }else{
+                        resend = true;
+                        printf("resend start. \n");
+                    }
                 }else if(!pause){
+                    if(!IsMarkScanCode(dataPortDword)){
+                        if(resend){
+                            SendScanCode(dataPortDword);  // resend the scancode.
+                        }
+                        char result[64];
+                        int length = sprintf(result ,"%llu-K-%d\n", GetTime(), dataPortDword);
+                        outputFile.write(result, length);
+                        SetKeyRelease(dataPortDword & 0x7F);
+                        printf("%d release\n", dataPortDword  & 0x7F);
+                    }else if(!keyPressed[dataPortDword]){
+                        ignoreNext = true;
+                        if(resend){
+                            SendScanCode(dataPortDword);  // resend the scancode.
+                        }
+                        char result[64];
+                        int length = sprintf(result ,"%llu-K-%d\n", GetTime(), dataPortDword);
+                        outputFile.write(result, length);
+                        SetKeyPress(dataPortDword);
+                        printf("%d press\n", dataPortDword);
+                    }
+                }else{
                     ignoreNext = true;
-                    SendScanCode(dataPortDword);  // resend the scancode.
-                    char result[64];
-                    int length = sprintf(result ,"%llu-KeyBoard-%d\n", GetTime(), dataPortDword);
-                    outputFile.write(result, length);
-                    outputFile.flush();
-                    printf("Get ScanCode: %d\n", dataPortDword);
+                    SendScanCode(dataPortDword);
+                    Sleep(1);
                 }
             }else{
                 ignoreNext = false;
             }
         }
     }
+    outputFile.flush();
     outputFile.close();
 }
 

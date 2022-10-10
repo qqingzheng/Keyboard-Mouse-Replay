@@ -6,10 +6,10 @@
 #ifndef _KEYBOARD_CONFIG_H
 #define _KEYBOARD_CONFIG_H
 #include <cstdio>
-#define START_KEY 112
-#define PAUSE_KEY 113
-#define END_KEY 114
-
+#define START_KEY 59
+#define PAUSE_KEY 60
+#define END_KEY 61
+#define RESEND_KEY 62
 typedef struct{
     unsigned int virtualKey;
     const char* name;
