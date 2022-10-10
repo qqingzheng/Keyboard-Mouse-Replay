@@ -14,7 +14,7 @@ int main(){
     //     return 1;
     // }
     // monitor.StartRecord("records/test.log");
-    Sleep(2000);
+    Sleep(3000);
     StartReplay();
     return 0;
 }
